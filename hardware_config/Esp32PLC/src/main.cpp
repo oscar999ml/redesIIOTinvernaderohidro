@@ -19,7 +19,7 @@ const char* WIFI_SSID  = "perroLobo";
 const char* WIFI_PASS  = "perroloba123";
 
 // ── Backend TCP ──────────────────────────────────────────────────────────
-const char* TCP_HOST   = "192.168.100.6";
+const char* TCP_HOST   = "137.184.218.192";
 const uint16_t TCP_PORT = 4002;
 
 // ── Hardware ─────────────────────────────────────────────────────────────
