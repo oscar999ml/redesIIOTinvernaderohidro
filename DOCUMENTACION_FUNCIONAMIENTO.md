@@ -192,16 +192,50 @@ PORT=4001               # Puerto del backend
 
 ## 10. Configurar IP del Backend en el Firmware
 
-El ESP32 necesita saber la IP de la PC en la red "perroLobo":
-
 ```cpp
 // En hardware_config/Esp32PLC/src/main.cpp
-const char* WS_HOST = "192.168.1.100";  // ← Cambiar por la IP de tu PC
+const char* TCP_HOST = "137.184.218.192";  // IP del VPS o de tu PC
+const uint16_t TCP_PORT = 4002;
 ```
 
-Para encontrar la IP:
-1. Conéctate a WiFi "perroLobo"
-2. Abre cmd.exe
-3. Ejecuta `ipconfig`
-4. Busca la línea "Dirección IPv4" en el adaptador WiFi
-5. Copia esa IP en `WS_HOST`
+Para encontrar tu IP local en Windows: `ipconfig` → "Dirección IPv4"
+
+---
+
+## ⚠️ 11. Problema Recurrente: COM3 ocupado (Puerto Cerrado)
+
+Cuando intentas subir firmware desde PlatformIO y sale **"Access denied"** o **"could not open port COM3"**, es porque el backend está corriendo y tiene el puerto ocupado.
+
+### Causa
+El backend (Node.js) abre COM3 al iniciar para comunicarse Serial con el ESP32. PlatformIO también necesita COM3 para subir el firmware. **No pueden compartir el puerto.**
+
+### Solución (30 segundos)
+
+```powershell
+# 1. Matar el backend
+Get-Process -Name "node" -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# 2. Verificar que COM3 quedó libre
+[System.IO.Ports.SerialPort]::GetPortNames()
+
+# 3. Subir firmware desde PlatformIO
+# (botón Upload en VS Code o: pio run --target upload)
+
+# 4. Después del upload, reiniciar backend
+cd Backend
+node --experimental-sqlite src/index.js
+```
+
+### Para no olvidar
+
+| Situación | COM3 está | Acción |
+|---|---|---|
+| Quieres subir firmware | ❌ Ocupado por backend | Matar backend primero |
+| Backend corriendo | ✅ Libre si nadie lo abrió | Normal |
+| Backend cayó / lo mataste | ✅ Libre | Puedes subir firmware |
+| Acabas de subir firmware | ✅ Libre | Iniciar backend |
+
+### Regla de oro
+> **Nunca pueden estar el backend Y PlatformIO usando COM3 al mismo tiempo.**
+> 
+> Subes firmware → matas backend → subes → reinicias backend.
