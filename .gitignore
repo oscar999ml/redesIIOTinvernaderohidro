@@ -30,6 +30,7 @@ Backend/*.db
 Thumbs.db
 .vscode/
 .idea/
+*.code-workspace
 
 # ── Logs ────────────────────────────────────────────────
 logs/

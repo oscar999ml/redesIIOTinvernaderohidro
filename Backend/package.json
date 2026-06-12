@@ -21,11 +21,12 @@
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.7.5",
     "winston": "^3.13.0",
+    "ws": "^8.21.0",
     "zod": "^3.23.8"
   },
   "optionalDependencies": {
-    "serialport": "^12.0.0",
-    "@serialport/parser-readline": "^12.0.0"
+    "@serialport/parser-readline": "^12.0.0",
+    "serialport": "^12.0.0"
   },
   "devDependencies": {
     "vitest": "^1.6.0"

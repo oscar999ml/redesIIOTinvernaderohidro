@@ -2,17 +2,18 @@
 // components/layout/Sidebar.tsx
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Bell, LineChart, Settings, Cpu, Sprout, Leaf, Users } from 'lucide-react'
+import { LayoutDashboard, Bell, LineChart, Settings, Cpu, Sprout, Leaf, Users, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const links = [
-  { href: '/',              label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/invernaderos',  label: 'Invernaderos', icon: Sprout },
-  { href: '/produccion',    label: 'Producción',   icon: Leaf },
-  { href: '/personal',      label: 'Personal',     icon: Users },
-  { href: '/alarmas',       label: 'Alarmas',      icon: Bell },
-  { href: '/historico',     label: 'Histórico',    icon: LineChart },
-  { href: '/configuracion', label: 'Config',       icon: Settings },
+  { href: '/',              label: 'Dashboard',     icon: LayoutDashboard },
+  { href: '/prueba-rapida', label: 'Prueba Rápida', icon: Zap },
+  { href: '/invernaderos',  label: 'Invernaderos',  icon: Sprout },
+  { href: '/produccion',    label: 'Producción',    icon: Leaf },
+  { href: '/personal',      label: 'Personal',      icon: Users },
+  { href: '/alarmas',       label: 'Alarmas',       icon: Bell },
+  { href: '/historico',     label: 'Histórico',     icon: LineChart },
+  { href: '/configuracion', label: 'Config',        icon: Settings },
 ]
 
 export function Sidebar() {

@@ -2,8 +2,8 @@
 import { authService } from '../services/authService.js';
 
 export function authMiddleware(req, res, next) {
-  // En modo desarrollo sin token: usuario admin por defecto
-  if (process.env.NODE_ENV === 'development' && !req.headers.authorization) {
+  // En desarrollo: cualquier request pasa como admin
+  if (process.env.NODE_ENV === 'development') {
     req.user = { id: 1, usuario: 'admin', rol: 'admin', sede_id: 'central' };
     return next();
   }

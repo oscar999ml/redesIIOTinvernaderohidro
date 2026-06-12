@@ -10,6 +10,7 @@ import { initWs } from './websocket/wsServer.js';
 import apiRouter from './api/router.js';
 import { abrirPuerto } from './serial/serialManager.js';
 import { iniciarSimulador } from './services/simulador.js';
+import { initTcpNodos } from './ws/tcpNodosManager.js';
 
 // ── Inicializar Express ────────────────────────────────────────────────────
 const app = express();
@@ -37,7 +38,11 @@ initWs(server);
 // ── Base de datos ──────────────────────────────────────────────────────────
 migrate();
 
+// ── TCP para ESP32 (puerto 4002) ─────────────────────────────────────────
+initTcpNodos();
+
 // ── Serial o Simulador ────────────────────────────────────────────────────
+
 if (env.SIMULATE) {
   iniciarSimulador();
 } else {
