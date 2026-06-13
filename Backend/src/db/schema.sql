@@ -169,9 +169,9 @@ CREATE TABLE IF NOT EXISTS incidencias (
 );
 
 
-# -- Nodo capacidades (auto-registry v2) --
-# Guarda que Sensores y actuadores declarados por cada esp
-z diccionario de variables y tipos de control
+-- -- Nodo capacidades (auto-registry v2) --
+-- Guarda que Sensores y actuadores declarados por cada esp
+-- z diccionario de variables y tipos de control
 
 CREATE TABLE IF NOT EXISTS nodo_sensores (
   nodo_id    INTEGER NOT NULL,

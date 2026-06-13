@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCADA Hidro Invernaderos</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; overflow: hidden; }
+    .sidebar { width: 280px; min-width: 280px; }
+    .nodo-card { cursor: pointer; transition: all 0.2s; }
+    .nodo-card:hover { transform: translateX(4px); }
+    .nodo-card.active { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+    .gauge-bar { height: 10px; border-radius: 5px; transition: width 0.5s ease; }
+    .gauge-circle { width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
+    .indicador-led { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+    .control-card { min-height: 140px; }
+    .value-display { font-size: 2rem; font-weight: 700; }
+    .sucursal-header { cursor: pointer; }
+    .sucursal-header:hover { background: rgba(255,255,255,0.05); }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-900 text-white flex">
+  <aside class="sidebar bg-slate-800/50 border-r border-slate-700 h-screen overflow-y-auto flex flex-col">
+    <div class="p-4 border-b border-slate-700">
+      <h1 class="text-lg font-bold text-green-400">SCADA</h1>
+      <p class="text-xs text-slate-400">Invernaderos Hidro</p>
+    </div>
+    <div class="flex items-center gap-2 px-4 py-2 text-xs border-b border-slate-700">
+      <span id="connLed" class="w-2 h-2 rounded-full bg-yellow-400"></span>
+      <span id="connText" class="text-slate-400">Conectando...</span>
+    </div>
+    <nav id="sidebarNav" class="flex-1 p-2 space-y-1 overflow-y-auto">
+      <div class="text-center text-slate-500 text-sm py-8">Cargando nodos...</div>
+    </nav>
+  </aside>
+
+  <main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="p-4 border-b border-slate-700 flex items-center justify-between">
+      <div>
+        <h2 id="mainTitle" class="text-xl font-bold">Selecciona un nodo</h2>
+        <p id="mainSubtitle" class="text-sm text-slate-400"></p>
+      </div>
+      <div class="flex items-center gap-3 text-xs text-slate-500">
+        <span id="clockDisplay"></span>
+      </div>
+    </header>
+
+    <div id="mainContent" class="flex-1 overflow-y-auto p-6">
+      <div class="text-center text-slate-500 py-20">
+        <p class="text-5xl mb-4">🌱</p>
+        <p>Selecciona un nodo del panel lateral</p>
+        <p class="text-sm mt-2">para ver sus sensores y controles</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = window.location.origin;
+    const socket = io(API, { transports: ['websocket', 'polling'] });
+    const connLed = document.getElementById('connLed');
+    const connText = document.getElementById('connText');
+    const sidebarNav = document.getElementById('sidebarNav');
+    const mainTitle = document.getElementById('mainTitle');
+    const mainSubtitle = document.getElementById('mainSubtitle');
+    const mainContent = document.getElementById('mainContent');
+    const clockDisplay = document.getElementById('clockDisplay');
+
+    let nodosData = [];
+    let selectedNodoId = null;
+    let lastValues = {};
+
+    setInterval(() => {
+      clockDisplay.textContent = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }, 1000);
+    clockDisplay.textContent = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+    socket.on('connect', () => { connLed.className = 'w-2 h-2 rounded-full bg-green-400 animate-pulse'; connText.textContent = 'Conectado'; });
+    socket.on('disconnect', () => { connLed.className = 'w-2 h-2 rounded-full bg-red-400'; connText.textContent = 'Desconectado'; });
+    socket.on('connect_error', () => { connLed.className = 'w-2 h-2 rounded-full bg-red-400'; connText.textContent = 'Error'; });
+
+    socket.on('nodo:estado', (data) => {
+      if (data.nodo_id && data.datos) {
+        lastValues[data.nodo_id] = { ...lastValues[data.nodo_id], ...data.datos, _timestamp: data.timestamp };
+        if (data.nodo_id === selectedNodoId) renderControls(selectedNodoId);
+        updateNodoBadge(data.nodo_id);
+      }
+    });
+
+    async function loadNodos() {
+      try {
+        const [nodosRes, gruposRes] = await Promise.all([
+          fetch(API + '/api/nodos'),
+          fetch(API + '/api/grupos')
+        ]);
+        nodosData = await nodosRes.json();
+        const grupos = await gruposRes.json();
+        renderSidebar(grupos);
+      } catch (err) {
+        sidebarNav.innerHTML = '<div class="text-red-400 text-sm p-4">Error al cargar nodos</div>';
+      }
+    }
+
+    function renderSidebar(grupos) {
+      let html = '';
+      for (const [sucursal, invernaderos] of Object.entries(grupos)) {
+        html += `<div class="mb-2">
+          <div class="sucursal-header flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white" onclick="toggleSucursal(this)">
+            <span class="text-xs text-slate-500">▶</span>
+            <span>${sucursal}</span>
+          </div>
+          <div class="ml-2 space-y-1 sucursal-body">`;
+        for (const inv of invernaderos) {
+          const nodosInv = nodosData.filter(n => (n.sucursal || 'Central') === sucursal && (n.invernadero || 'A') === inv);
+          html += `<div class="pl-4 py-1">
+            <div class="text-xs text-slate-500 mb-1">Invernadero ${inv}</div>`;
+          for (const nodo of nodosInv) {
+            const isOn = lastValues[nodo.id] && lastValues[nodo.id].led ? 'ring-green-400' : 'ring-slate-600';
+            html += `<div class="nodo-card flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700/50 ${isOn}" data-nodo-id="${nodo.id}" onclick="selectNodo(${nodo.id})">
+              <span class="text-sm">${nodo.nombre}</span>
+              <span class="text-xs text-slate-500 ml-auto" id="badge-${nodo.id}"></span>
+            </div>`;
+          }
+          html += `</div>`;
+        }
+        html += `</div></div>`;
+      }
+      if (!Object.keys(grupos).length) {
+        html = '<div class="text-slate-500 text-sm p-4 text-center">Sin nodos registrados</div>';
+      }
+      sidebarNav.innerHTML = html;
+    }
+
+    function toggleSucursal(el) {
+      const body = el.nextElementSibling;
+      const arrow = el.querySelector('span:first-child');
+      if (body.style.display === 'none') {
+        body.style.display = '';
+        arrow.textContent = '▶';
+      } else {
+        body.style.display = 'none';
+        arrow.textContent = '▶';
+      }
+    }
+
+    function updateNodoBadge(nodoId) {
+      const badge = document.getElementById('badge-' + nodoId);
+      if (!badge) return;
+      const vals = lastValues[nodoId];
+      if (vals && vals._timestamp) {
+        const secs = Math.floor((Date.now() - new Date(vals._timestamp).getTime()) / 1000);
+        if (secs < 10) badge.textContent = '🟢';
+        else if (secs < 60) badge.textContent = '🟡';
+        else badge.textContent = '🔴';
+      }
+    }
+
+    async function selectNodo(nodoId) {
+      selectedNodoId = nodoId;
+      const nodo = nodosData.find(n => n.id === nodoId);
+      if (!nodo) return;
+      mainTitle.textContent = nodo.nombre;
+      mainSubtitle.textContent = (nodo.sucursal || 'Central') + ' · Invernadero ' + (nodo.invernadero || 'A') + ' · ' + (nodo.hardware || 'ESP') + ' v' + (nodo.version || '?');
+      document.querySelectorAll('.nodo-card').forEach(c => c.classList.remove('active'));
+      const card = document.querySelector('.nodo-card[data-nodo-id="' + nodoId + '"]');
+      if (card) card.classList.add('active');
+      await renderControls(nodoId);
+    }
+
+    async function renderControls(nodoId) {
+      try {
+        const res = await fetch(API + '/api/nodos/' + nodoId + '/capacidades');
+        const cap = await res.json();
+        const vals = lastValues[nodoId] || {};
+        let html = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+        for (const s of cap.sensores || []) {
+          html += renderSensorCard(s, vals[s.id], nodoId);
+        }
+        for (const a of cap.actuadores || []) {
+          html += renderActuadorCard(a, vals[a.id], nodoId);
+        }
+        html += '</div>';
+        if (!cap.sensores.length && !cap.actuadores.length) {
+          html = '<div class="text-center text-slate-500 py-10"><p class="text-3xl mb-2">📡</p><p>Este nodo no reporta capacidades</p></div>';
+        }
+        mainContent.innerHTML = html;
+      } catch (err) {
+        mainContent.innerHTML = '<div class="text-red-400">Error: ' + err.message + '</div>';
+      }
+    }
+
+    function renderSensorCard(sensor, valor, nodoId) {
+      const config = sensor.config || {};
+      const val = valor != null ? valor : '--';
+      let inner = '';
+      switch (sensor.tipo) {
+        case 'gauge':
+          const min = config.min || 0;
+          const max = config.max || 100;
+          const pct = val !== '--' ? Math.min(100, Math.max(0, ((val - min) / (max - min)) * 100)) : 0;
+          const color = pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#22c55e';
+          inner = `<div class="flex flex-col items-center">
+            <div class="value-display" style="color:${color}">${val !== '--' ? val + ' ' + (sensor.unidad || '') : '--'}</div>
+            <div class="w-full bg-slate-700 rounded-full h-3 mt-2">
+              <div class="gauge-bar h-3 rounded-full" style="width:${pct}%;background:${color}"></div>
+            </div>
+            <div class="flex justify-between w-full text-xs text-slate-500 mt-1"><span>${min}</span><span>${max}</span></div>
+          </div>`;
+          break;
+        default:
+          inner = `<div class="text-center"><span class="value-display">${val !== '--' ? val + ' ' + (sensor.unidad || '') : '--'}</span></div>`;
+      }
+      return `<div class="control-card bg-slate-800 rounded-xl p-4 border border-slate-700"><div class="text-sm text-slate-400 mb-2">${sensor.label}</div>${inner}</div>`;
+    }
+
+    function renderActuadorCard(act, valor, nodoId) {
+      const config = act.config || {};
+      let inner = '';
+      switch (act.tipo) {
+        case 'toggle':
+          const isOn = valor === true || valor === 1;
+          inner = `<div class="flex flex-col items-center gap-3">
+            <button onclick="enviarComando(${nodoId},'set_${act.id}',${isOn ? 0 : 1})" class="w-20 h-20 rounded-full text-3xl transition-all duration-300 ${isOn ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/30' : 'bg-slate-700 text-slate-400'}">${isOn ? '💡' : '🔴'}</button>
+            <span class="text-sm ${isOn ? 'text-yellow-400' : 'text-slate-400'}">${isOn ? 'ON' : 'OFF'}</span>
+          </div>`;
+          break;
+        case 'slider':
+          const min = config.min || 0;
+          const max = config.max || 100;
+          const curVal = valor != null ? valor : min;
+          inner = `<div class="flex flex-col gap-3">
+            <div class="flex justify-between items-center"><span class="value-display text-lg">${curVal}${act.unidad || ''}</span></div>
+            <input type="range" min="${min}" max="${max}" value="${curVal}" oninput="enviarComando(${nodoId},'set_${act.id}',this.value)" class="w-full accent-blue-500">
+            <div class="flex justify-between text-xs text-slate-500"><span>${min}</span><span>${max}</span></div>
+          </div>`;
+          break;
+        case 'number_input':
+          const nv = valor != null ? valor : 0;
+          inner = `<div class="flex items-center justify-center gap-4">
+            <button onclick="enviarComando(${nodoId},'set_${act.id}',Math.max(0,(${nv}-1)))" class="w-12 h-12 rounded-lg bg-slate-700 hover:bg-slate-600 text-xl">−</button>
+            <span class="value-display text-2xl w-16 text-center">${nv}</span>
+            <button onclick="enviarComando(${nodoId},'set_${act.id}',${nv}+1)" class="w-12 h-12 rounded-lg bg-slate-700 hover:bg-slate-600 text-xl">+</button>
+          </div>`;
+          break;
+        case 'selector':
+          const opts = config.opciones || ['auto', 'manual', 'off'];
+          inner = `<div class="flex gap-2 justify-center flex-wrap">${opts.map(o => `<button onclick="enviarComando(${nodoId},'set_${act.id}','${o}')" class="px-4 py-2 rounded-lg text-sm ${valor === o ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">${o}</button>`).join('')}</div>`;
+          break;
+        case 'indicador':
+          const est = valor || 'OFF';
+          const colors = { OK: '#22c55e', ON: '#22c55e', OFF: '#64748b', FALLA: '#ef4444', ALARMA: '#f59e0b' };
+          inner = `<div class="flex flex-col items-center gap-2"><div class="indicador-led" style="background:${colors[est] || '#64748b'};box-shadow:0 0 12px ${colors[est] || '#64748b'}40"></div><span class="text-sm">${est}</span></div>`;
+          break;
+        default:
+          inner = `<div class="text-center"><span class="value-display">${valor != null ? valor : '--'}</span></div>`;
+      }
+      return `<div class="control-card bg-slate-800 rounded-xl p-4 border border-slate-700"><div class="text-sm text-slate-400 mb-2">${act.label}</div>${inner}</div>`;
+    }
+
+    async function enviarComando(nodoId, accion, valor) {
+      try {
+        const res = await fetch(API + '/api/comandos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nodo_id: nodoId, accion, valor })
+        });
+        const data = await res.json();
+        if (!data.ok) console.error('Comando error:', data);
+      } catch (err) {
+        console.error('Error al enviar comando:', err);
+      }
+    }
+
+    loadNodos();
+    setInterval(loadNodos, 30000);
+  </script>
+</body>
+</html>

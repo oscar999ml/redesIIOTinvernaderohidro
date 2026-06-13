@@ -1,0 +1,15 @@
+services:
+  backend:
+    build: ./Backend
+    container_name: scada-backend
+    ports:
+      - "4001:4001"
+      - "4002:4002"
+    volumes:
+      - ./Backend/data:/app/data
+    environment:
+      - PORT=4001
+      - HOST=0.0.0.0
+      - NODE_ENV=development
+      - SIMULATE=false
+    restart: unless-stopped

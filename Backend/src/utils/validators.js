@@ -45,6 +45,6 @@ export const RegistroSchema = z.object({
     wifi_signal: z.number().optional(),
     free_heap: z.number().optional(),
   }).strip().optional(),
-  sensores: z.record(z).optional(),
-  actuadores: z.record(z).optional(),
+  sensores: z.record(z.any()).optional(),
+  actuadores: z.record(z.any()).optional(),
 });

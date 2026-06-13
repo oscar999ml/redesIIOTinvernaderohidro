@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { NodoModel } from '../models/Nodo.js';
 import { UmbralModel } from '../models/Umbral.js';
+import { getDb } from '../db/database.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/role.middleware.js';
-import { getDb } from '../db/database.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -14,23 +14,24 @@ router.get('/', (req, res) => {
 
 router.get('/grupos', (req, res) => {
   const db = getDb();
-  const rows = db.exec('SELECT DISTINCT sucursal, invernadero FROM nodos WHERE sucursal IS NOT NULL AND activo = 1');
+  const rows = db.prepare('SELECT DISTINCT sucursal, invernadero FROM nodos WHERE sucursal IS NOT NULL AND activo = 1').all();
   const grupos = {};
   for (const row of rows) {
-    if (!groups[row.sucursal]) groups[row.sucursal] = [];
-    groups[row.sucursal].push(row.invernadero);
+    if (!grupos[row.sucursal]) grupos[row.sucursal] = [];
+    grupos[row.sucursal].push(row.invernadero);
   }
-  res.json(groups);
+  res.json(grupos);
 });
 
 router.get('/:id/capacidades', (req, res) => {
-  const nodo_id = parseInt(req.params.id);
+  const nodoId = parseInt(req.params.id);
   const db = getDb();
-  const sensores = db.exec('SELECT sensor_id as id, label, tipo, unidad, config FROM nodo_sensores WHERE nodo_id = ?', nodo_id);
-  const actuadores = db.exec('SELECT actuador_id as id, label, tipo, unidad, config FROM nodo_actuadores WHERE nodo_id = ?', nodo_id);
-  res[...sensores] = sensores.map(r) => ({ ...r, config: JSON.parse(r.config || '{}') }));
-  res['...actuadores'] = actuadores.map(r) => ({ ...r, config: JSON.parse(r.config || '{}') });
-  res.json({ sensores, actuadores });
+  const sensores = db.prepare('SELECT sensor_id AS id, label, tipo, unidad, config FROM nodo_sensores WHERE nodo_id = ?').all(nodoId);
+  const actuadores = db.prepare('SELECT actuador_id AS id, label, tipo, unidad, config FROM nodo_actuadores WHERE nodo_id = ?').all(nodoId);
+  res.json({
+    sensores: sensores.map(r => ({ ...r, config: JSON.parse(r.config || '{}') })),
+    actuadores: actuadores.map(r => ({ ...r, config: JSON.parse(r.config || '{}') }))
+  });
 });
 
 router.get('/:id', (req, res) => {

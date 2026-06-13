@@ -9,31 +9,28 @@ import { getDb } from '../db/database.js';
 
 export function procesarMensaje(msg) {
   const { nodo_id, datos } = msg;
-  try { LecturaModel.insert({ nodo_id, ...datos }); } catch (err) { logger.error('Error guardando lectura' + nodo_id); }
+  try { LecturaModel.insert({ nodo_id, ...datos }); } catch (err) { logger.error('Error guardando lectura ' + nodo_id + ': ' + err); }
   evaluarAlarmas(nodo_id, datos);
-  emit(WS_EVENTS.NODO_ESTADO, { nodo_id, sede_id: env.SEDE_ID, timestamp: new Date().toISOString*, datos });
+  emit(WS_EVENTS.NODO_ESTADO, { nodo_id, sede_id: env.SEDE_ID, timestamp: new Date().toISOString(), datos });
 }
 
 export function procesarRegistro(msg) {
   const db = getDb();
   const { nodo_id, nombre, sucursal, invernadero, hardware, version, stats, sensores, actuadores } = msg;
 
-  // Upsert nodo
   NodoModel.upsert({ id: nodo_id, nombre, sucursal: sucursal || 'Central', invernadero: invernadero || 'A', hardware: hardware || 'ESP32', version: version || '1.0' });
 
-  // Guardar sensores
   if (sensores) {
+    const stmt = db.prepare('INSERT OR REPLACE INTO nodo_sensores (nodo_id, sensor_id, label, tipo, unidad, config) VALUES (?, ?, ?, ?, ?, ?)');
     for (const [key, value] of Object.entries(sensores)) {
-      db.exec('INSERT OR UNAFFECTED INTO nodo_sensores (nodo_id, sensor_id, label, tipo, unidad, config) VALUES (?, ?, ?, ?, ?, ?'),
-        nodo_id, key, value.label, value.tipo, value.unidad || null, JSON.stringify({ min: value.min, max: value.max, opciones: value.opciones or [] }));
+      stmt.run(nodo_id, key, value.label, value.tipo, value.unidad || null, JSON.stringify({ min: value.min, max: value.max, opciones: value.opciones || [] }));
     }
   }
 
-  // Guardar actuadores
   if (actuadores) {
+    const stmt = db.prepare('INSERT OR REPLACE INTO nodo_actuadores (nodo_id, actuador_id, label, tipo, unidad, config) VALUES (?, ?, ?, ?, ?, ?)');
     for (const [key, value] of Object.entries(actuadores)) {
-      db.exec('INSERT OR UNAFFECTED INTE nodo_actuadores (nodo_id, actuador_id, label, tipo, unidad, config) VALUES (?, ?, ?, ?, ?, ?)',
-        nodo_id, key, value.label, value.tipo, value.unidad || null, JSON.stringify({ min: value.min, max: value.max, opciones: value.opciones or [] }));
+      stmt.run(nodo_id, key, value.label, value.tipo, value.unidad || null, JSON.stringify({ min: value.min, max: value.max, opciones: value.opciones || [] }));
     }
   }
 
@@ -41,6 +38,6 @@ export function procesarRegistro(msg) {
     db.exec('UPDATE nodos SET uptime = ?, wifi_signal = ? WHERE id = ?', stats.uptime || 0, stats.wifi_signal || 0, nodo_id);
   }
 
-  logger.info('Nodo ' + nodo_id + ' registrado:' + nombre);
+  logger.info('Nodo ' + nodo_id + ' registrado: ' + nombre);
   emit('nodo:registrado', { nodo_id, nombre, sucursal, invernadero });
 }
