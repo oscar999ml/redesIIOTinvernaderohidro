@@ -167,3 +167,31 @@ CREATE TABLE IF NOT EXISTS incidencias (
   FOREIGN KEY (nodo_id) REFERENCES nodos(id),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
+
+
+# -- Nodo capacidades (auto-registry v2) --
+# Guarda que Sensores y actuadores declarados por cada esp
+z diccionario de variables y tipos de control
+
+CREATE TABLE IF NOT EXISTS nodo_sensores (
+  nodo_id    INTEGER NOT NULL,
+  sensor_id  TEXT NOT NULL,  -- ej: temp, humedad, ph
+  label      TEXT NOT NULL,  -- ej: Temperatura
+  tipo       TEXT NOT NULL,  -- gauge, toggle, slider
+  unidad     TEXT,
+  config     TEXT,
+  PRIMARY KEY (nodo_id, sensor_id),
+  FOREIGN KEY (nodo_id) REFERENCES nodos(id)
+);
+
+
+CREATE TABLE IF NOT EXISTS nodo_actuadores (
+  nodo_id     INTEGER NOT NULL,
+  actuador_id TEXT NOT NULL,
+  label       TEXT NOT NULL,
+  tipo       TEXT NOT NULL,
+  unidad     TEXT,
+  config      TEXT,
+  PRIMARY KEY (nodo_id, actuador_id),
+  FOREIGN KEY (nodo_id) REFERENCES nodos(id)
+);

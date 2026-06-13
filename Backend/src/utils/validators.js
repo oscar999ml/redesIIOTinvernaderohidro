@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const MensajeSerialSchema = z.object({
   nodo_id: z.number().int().positive(),
   tipo: z.string(),
-  datos: z.record(z.union([z.number(), z.boolean(), z.string()])),
+  datos: z.record(z.union([z.number(), z.boolean(), z.string()])).optional(),
 });
 
 export const ComandoSchema = z.object({
@@ -30,4 +30,21 @@ export const UmbralSchema = z.object({
   variable: z.string().min(1),
   umbral_max: z.number().nullable().optional(),
   umbral_min: z.number().nullable().optional(),
+});
+
+export const RegistroSchema = z.object({
+  nodo_id: z.number().int().positive(),
+  tipo: z.literal('registro'),
+  version: z.string().optional(),
+  sucursal: z.string().optional(),
+  invernadero: z.string().optional(),
+  nombre: z.string(),
+  hardware: z.string().optional(),
+  stats: z.object({
+    uptime: z.number().optional(),
+    wifi_signal: z.number().optional(),
+    free_heap: z.number().optional(),
+  }).strip().optional(),
+  sensores: z.record(z).optional(),
+  actuadores: z.record(z).optional(),
 });

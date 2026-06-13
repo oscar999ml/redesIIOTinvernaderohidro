@@ -1,15 +1,15 @@
 import net from 'net';
 import { logger } from '../utils/logger.js';
 import { parsearMensaje } from '../serial/serialParser.js';
-import { procesarMensaje } from '../services/nodosService.js';
+import { procesarMensaje, procesarRegistro } from '../services/nodosService.js';
 
 const _conexiones = new Map();
 const TCP_PORT = 4002;
 
 export function initTcpNodos() {
   const server = net.createServer((socket) => {
-    const remote = `${socket.remoteAddress}:${socket.remotePort}`;
-    logger.info(`ESP32 conectado vía TCP desde ${remote}`);
+    const remote = `socket.remoteAddress:${socket.remotePort}`;
+    logger.info(`ESP32 conectado via TCP desde ${remote}`);
     let nodoId = null;
     let buffer = '';
 
@@ -25,18 +25,20 @@ export function initTcpNodos() {
           if (!msg) continue;
           nodoId = msg.nodo_id;
           _conexiones.set(nodoId, socket);
-          procesarMensaje(msg);
+          if (msg.tipo === 'registro') {
+            procesarRegistro(msg);
+            socket.write(JSON.stringify({ status: 'ok', nodo_id: nodoId }) + '\n');
+          } else {
+            procesarMensaje(msg);
+          }
         } catch (err) {
-          logger.warn(`Mensaje inválido de ESP32: ${err.message}`);
+          logger.warn(`Se perdio el mensaje: ${err.message}`);
         }
       }
     });
 
     socket.on('close', () => {
-      if (nodoId) {
-        _conexiones.delete(nodoId);
-        logger.info(`ESP32 nodo ${nodoId} desconectado`);
-      }
+      if (nodoId) { _conexiones.delete(nodoId); logger.info(`ESP32 nodo ${nodoId} desconectado`); }
     });
 
     socket.on('error', (err) => {
@@ -54,7 +56,7 @@ export function initTcpNodos() {
 export function enviarComandoTcp(comando) {
   const socket = _conexiones.get(comando.nodo_id);
   if (!socket || socket.destroyed) {
-    logger.warn(`ESP32 nodo ${comando.nodo_id} no conectado vía TCP`);
+    logger.warn(`ESP32 nodo ${comando.nodo_id} no conectado via TCP`);
     return false;
   }
   socket.write(JSON.stringify(comando) + '\n');
